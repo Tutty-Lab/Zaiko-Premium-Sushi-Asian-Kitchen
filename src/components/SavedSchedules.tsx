@@ -1,0 +1,81 @@
+import type { UseScheduleReturn } from "../hooks/useSchedule";
+import { minutesToShortHours } from "../lib/time";
+import { datesOfMonth } from "../lib/demand";
+import { dateRangeLabel } from "../lib/dateLabel";
+
+/**
+ * Danh sách „Lịch đã lưu" (theo Thienlong/Vietpho) – mở từ ☰ Menu. Mỗi tháng
+ * một lịch: đổi tháng thì lịch đang mở tự cất vào kho, mở lại tháng thì lịch
+ * của tháng đó quay về. `openMonth` chuyển mọi quán sang tháng đó (tháng dùng chung).
+ */
+export function SavedSchedulesPanel({
+  store,
+  openMonth,
+  onClose,
+}: {
+  store: UseScheduleReturn;
+  openMonth: (year: number, month: number) => void;
+  onClose: () => void;
+}) {
+  const { savedMonths } = store;
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white">
+      <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
+        <span className="text-sm font-medium text-slate-800">Lịch đã lưu · {store.storeConfig.shortName}</span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-lg leading-none text-slate-400 hover:text-slate-600"
+          aria-label="Đóng"
+        >
+          ×
+        </button>
+      </div>
+      {savedMonths.length === 0 ? (
+        <p className="px-3 py-3 text-sm text-slate-500">
+          Chưa có tháng nào. Tạo lịch cho một tháng, lịch sẽ tự được lưu khi đổi sang tháng khác.
+        </p>
+      ) : (
+        <ul className="divide-y divide-slate-100">
+          {[...savedMonths].reverse().map((m) => (
+            <li key={m.key} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
+              <span className="shrink-0 font-medium text-slate-900">
+                Tháng {m.month}/{m.year}
+                <span className="block text-xs font-normal text-slate-500">{dateRangeLabel(datesOfMonth(m.year, m.month))}</span>
+              </span>
+              <span className="min-w-0 flex-1 text-slate-500">
+                {m.shiftCount} ca · {minutesToShortHours(m.totalMinutes)}
+                {m.savedAt ? ` · lưu ${formatSavedAt(m.savedAt)}` : ""}
+                {(store.schedule.pdfExports ?? []).filter(e => e.from.startsWith(m.key)).map((e, i) => <span key={i} className="block text-xs">Đã xuất {e.kind === "timesheet" ? "chấm công" : "lịch"}: {dateRangeLabel([e.from, e.to])} · {formatSavedAt(e.exportedAt)}</span>)}
+              </span>
+              {m.current ? (
+                <span className="shrink-0 rounded-full bg-slate-900 px-3 py-1 text-xs text-white">Đang mở</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    openMonth(m.year, m.month);
+                    onClose();
+                    // Về đầu trang để thấy rõ đã chuyển tháng.
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="shrink-0 rounded-full border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:border-slate-500"
+                >
+                  Mở
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** „24.09 14:30" */
+function formatSavedAt(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
