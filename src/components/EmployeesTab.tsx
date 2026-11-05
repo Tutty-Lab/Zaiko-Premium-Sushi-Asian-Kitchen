@@ -14,7 +14,15 @@ import { describePreferredWindow, ownShiftRangeMinutes, preferredWindowsOf } fro
 const inputClass =
   "rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base sm:text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500";
 
-const ROLE_LABELS: Record<string, string> = { Kasse: "Thu ngân · Kasse", "Aushilfe / Küchenhilfe": "Phụ bếp · Aushilfe", "Koch / Küchenhilfe": "Đầu bếp · Koch/Küche" };
+const ROLE_LABELS: Record<string, string> = {
+  "Phục Vụ": "Phục Vụ",
+  Sushi: "Sushi",
+  Bếp: "Bếp",
+  Bar: "Bar",
+  Kasse: "Thu ngân · Kasse",
+  "Aushilfe / Küchenhilfe": "Phụ bếp · Aushilfe",
+  "Koch / Küchenhilfe": "Đầu bếp · Koch/Küche",
+};
 
 const FIXED_START_DEFAULT = "10:00";
 const FIXED_END_DEFAULT = "20:00";
@@ -629,9 +637,10 @@ function EmployeeSheet({
               <FieldLabel>Bộ phận chính (ưu tiên mềm)</FieldLabel>
               <select aria-label="Bộ phận chính" className={`${inputClass} w-full`} value={d.role} onChange={e => set("role", e.target.value)}>
                 <option value="">Chưa chọn</option>
-                <option value="Aushilfe / Küchenhilfe">Phụ bếp · Aushilfe</option>
-                <option value="Kasse">Thu ngân · Kasse</option>
-                <option value="Koch / Küchenhilfe">Đầu bếp · Koch/Küche</option>
+                <option value="Phục Vụ">Phục Vụ</option>
+                <option value="Sushi">Sushi</option>
+                <option value="Bếp">Bếp</option>
+                <option value="Bar">Bar</option>
               </select>
               <p className="mt-1 text-xs text-slate-500">Vai trò chính để ưu tiên xếp ca; vẫn hỗ trợ vị trí khác. Khung giờ ưu tiên chỉnh ở phần nâng cao.</p>
             </div>
