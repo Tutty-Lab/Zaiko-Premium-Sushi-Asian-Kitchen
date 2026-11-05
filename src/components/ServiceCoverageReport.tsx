@@ -11,7 +11,7 @@ export function ServiceCoverageReport({ schedule }: { schedule: Schedule }) {
   const diagnosis = useMemo(() => staffingDiagnostics(schedule), [schedule]);
   return <details className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
     <summary className="cursor-pointer font-medium">Kasse / Phụ bếp: thiếu bắt buộc {hours(report.requiredEmptyMinutes)} · trống cho phép {hours(report.emptyMinutes-report.requiredEmptyMinutes)} · trùng {hours(report.overlapMinutes)} — xem khung giờ thiếu</summary>
-    <p className="mt-2">Trưa 12:00–14:00 cần ít nhất 2 người, tính cả chủ. Báo cáo này theo dõi riêng Kasse/phụ bếp; kiểm tra tổng nhân sự trong báo cáo Độ phủ.</p>
+    <p className="mt-2">Trưa 12:00–14:00 cần ít nhất 2 nhân viên. Zaiko xếp theo tổng số người, không bắt buộc theo bộ phận.</p>
     <p className="mt-1">Chỉ ca liền. Độ dài ca mong muốn là ưu tiên mềm. Giờ của người chọn Cả 2 chỉ tính một vị trí mỗi thời điểm.</p>
     <div className="mt-3 space-y-1">{diagnosis.conclusions.map(text=><p key={text}>{text}</p>)}</div>
     {diagnosis.adjustments.length>0&&<ul className="mt-2 list-disc pl-5 text-xs">{diagnosis.adjustments.map(text=><li key={text}>{text}</li>)}</ul>}
