@@ -412,7 +412,7 @@ export function ScheduleTab({
                   return day && day.targetHours > 0 ? minutesToShortHours(Math.round(day.targetHours * 2) * 30) : "–";
                 }}
               />
-              <SummaryRow label="Ca sáng" dates={gridDates} value={(d) => String(dayStats.get(d)!.early)} />
+              <SummaryRow label="Ca trưa" dates={gridDates} value={(d) => String(dayStats.get(d)!.early)} />
               {schedule.shifts.length > 0 && staffingRows.map((rule) => (
                 <CoverageRow
                   key={rule.label}
@@ -423,7 +423,7 @@ export function ScheduleTab({
                   peaks={(d) => peaksByDay.get(d)?.byLabel.get(rule.label)}
                 />
               ))}
-              {schedule.shifts.length > 0 && [[600,720],[720,840],[840,1080],[1080,1200]].map(([from,to]) => (
+              {schedule.shifts.length > 0 && [[720,960],[1020,1080],[1080,1200],[1200,1320]].map(([from,to]) => (
                 <SummaryRow key={from} label={`Có mặt ${from/60}–${to/60}h`} dates={gridDates} value={date => {
                   const day = resolveDay(schedule.workHours, date, publicHolidays(schedule.year), Object.fromEntries(schedule.dateOverrides.map(o => [o.date,o])));
                   if(day.closed) return "–";
