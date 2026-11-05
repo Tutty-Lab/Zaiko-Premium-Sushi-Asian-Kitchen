@@ -18,5 +18,7 @@ const STORE_KEY="zaiko-app:store";
 export function loadStoreId(){try{const saved=localStorage.getItem(STORE_KEY);if(saved&&STORES.some(s=>s.id===saved))return saved;}catch{} return DEFAULT_STORE_ID;}
 export function saveStoreId(id:string){try{localStorage.setItem(STORE_KEY,id);}catch{}}
 export function storeById(id:string){return STORES.find(s=>s.id===id)??STORES[0];}
-export function withSharedPersonDefaults(employees:Employee[],_store:StoreConfig){return employees;}
+export function withSharedPersonDefaults(employees:Employee[],_store:StoreConfig){
+  return employees.some((employee) => employee.ownerSupport) ? employees : [...employees, restaurantOwner()];
+}
 export function initialScheduleFor(store:StoreConfig):Schedule{return {companyName:store.name,address:store.address,year:2026,month:11,workHours:structuredClone(store.workHours!),dateOverrides:[],employees:[...store.sampleEmployees(),restaurantOwner()],shifts:[]};}
