@@ -9,8 +9,12 @@ const midday=[{startMinutes:720,endMinutes:960},{startMinutes:1020,endMinutes:13
 const holiday=[{startMinutes:840,endMinutes:1320}];
 const workHours: WorkHoursConfig = { perWeekday:{ monday:midday,tuesday:[],wednesday:midday,thursday:midday,friday:midday,saturday:midday,sunday:holiday }, holiday, closedWeekdays:{monday:false,tuesday:true,wednesday:false,thursday:false,friday:false,saturday:false,sunday:false} };
 const rules: readonly StaffingRule[] = [
- {priority:"required",label:"Tối thiểu 2 nhân viên",when:"12:00–16:00 và 17:00–22:00",minStaff:2,maxStaff:Infinity,scaled:false,windows:clip(720,960)},
- {priority:"coverage",label:"Tăng cường giờ cao điểm tối",when:"18:00–20:00",minStaff:4,maxStaff:Infinity,scaled:false,windows:clip(1080,1200)},
+ {priority:"required",label:"Phục Vụ + Bar",when:"12:00–16:00 và 17:00–22:00",minStaff:1,maxStaff:Infinity,scaled:false,who:(employee) => employee.station === "SERVICE",windows:(blocks) => blocks.map(block => ({...block}))},
+ {priority:"required",label:"Sushi + Bếp",when:"12:00–16:00 và 17:00–22:00",minStaff:1,maxStaff:Infinity,scaled:false,who:(employee) => employee.station === "KITCHEN",windows:(blocks) => blocks.map(block => ({...block}))},
+ {priority:"coverage",label:"Phục Vụ + Bar giờ cao điểm T6/T7",when:"18:00–20:00 · Thứ 6, Thứ 7",minStaff:1,maxStaff:Infinity,scaled:false,weekdays:["friday","saturday"],who:(employee) => employee.station === "SERVICE",windows:clip(1080,1200)},
+ {priority:"coverage",label:"Sushi + Bếp giờ cao điểm T6/T7",when:"18:00–20:00 · Thứ 6, Thứ 7",minStaff:1,maxStaff:Infinity,scaled:false,weekdays:["friday","saturday"],who:(employee) => employee.station === "KITCHEN",windows:clip(1080,1200)},
+ {priority:"coverage",label:"Phục Vụ + Bar giờ cao điểm Chủ nhật",when:"17:00–20:00 · Chủ nhật",minStaff:1,maxStaff:Infinity,scaled:false,weekdays:["sunday"],who:(employee) => employee.station === "SERVICE",windows:clip(1020,1200)},
+ {priority:"coverage",label:"Sushi + Bếp giờ cao điểm Chủ nhật",when:"17:00–20:00 · Chủ nhật",minStaff:1,maxStaff:Infinity,scaled:false,weekdays:["sunday"],who:(employee) => employee.station === "KITCHEN",windows:clip(1020,1200)},
 ];
 export const STORES: StoreConfig[]=[{id:"zaiko",name:"Zaiko Premium Sushi & Asian Kitchen",shortName:"Zaiko",address:"Friedrich Ebert Strasse 49 - 42103 Wuppertal",sampleEmployees:zaikoEmployees,workHours,staffingRules:rules,demandProfile:[{startMinutes:720,endMinutes:960,level:0.8,label:"Trưa"},{startMinutes:1020,endMinutes:1080,level:1,label:"Mở cửa tối"},{startMinutes:1080,endMinutes:1200,level:2,label:"Cao điểm"},{startMinutes:1200,endMinutes:1320,level:1.2,label:"Tối"}],dayWeights:{monday:1.5,tuesday:0,wednesday:1.1,thursday:1.1,friday:1.6,saturday:1.7,sunday:1.5},notes:"Ngày đông: Thứ 2, Thứ 6, Thứ 7, Chủ nhật. Doanh thu khoảng 1.800–3.800 €. Cuối tuần ưu tiên đủ người, chủ yếu buổi tối; chủ có mặt khi tiệm hoạt động."}];
 export const DEFAULT_STORE_ID=STORES[0].id;
