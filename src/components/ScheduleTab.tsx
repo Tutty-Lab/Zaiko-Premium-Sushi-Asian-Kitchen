@@ -159,7 +159,7 @@ export function ScheduleTab({
 
   return (
     <section>
-      {schedule.employees.some(e => e.ownerSupport) && <p className="mb-3 rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-900">Chủ quán có mặt suốt giờ mở cửa mỗi ngày; hỗ trợ chung, không chia bộ phận cứng. Không tính vào giờ hợp đồng hay bảng chấm công.</p>}
+      {schedule.employees.some(e => e.ownerSupport) && <p className="mb-3 rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-900">Chủ quán có mặt suốt giờ mở cửa mỗi ngày. Chỉ hiển thị tham khảo; không tính khi tạo lịch, độ phủ nhân viên, giờ hợp đồng hay bảng chấm công.</p>}
       {/* Alles Sichtbare liegt im no-print-Block; beim Drucken bleibt nur der
           Druckbereich ganz unten übrig. */}
       <div className="no-print">
@@ -423,17 +423,17 @@ export function ScheduleTab({
                   peaks={(d) => peaksByDay.get(d)?.byLabel.get(rule.label)}
                 />
               ))}
-              {schedule.shifts.length > 0 && [[720,960],[1020,1080],[1080,1200],[1200,1320]].map(([from,to]) => (
-                <SummaryRow key={from} label={`Có mặt ${from/60}–${to/60}h`} dates={gridDates} value={date => {
+              {schedule.shifts.length > 0 && ["SERVICE", "KITCHEN"].flatMap(group => [[720,960],[1020,1080],[1080,1200],[1200,1320]].map(([from,to]) => (
+                <SummaryRow key={`${group}-${from}`} label={`${group === "SERVICE" ? "Phục vụ + Bar" : "Sushi + Bếp"} ${from/60}–${to/60}h`} dates={gridDates} value={date => {
                   const day = resolveDay(schedule.workHours, date, publicHolidays(schedule.year), Object.fromEntries(schedule.dateOverrides.map(o => [o.date,o])));
                   if(day.closed) return "–";
                   const shifts = schedule.shifts.filter(sh => sh.date === date);
                   const employees = new Map(schedule.employees.map(e => [e.id,e]));
                   const counts: number[] = [];
-                  for(const block of day.blocks) for(let t=Math.max(from,block.startMinutes);t<Math.min(to,block.endMinutes);t+=15) counts.push(staffAt(shifts,employees,t).length);
+                  for(const block of day.blocks) for(let t=Math.max(from,block.startMinutes);t<Math.min(to,block.endMinutes);t+=15) counts.push(staffAt(shifts,employees,t).filter(employee => employee.station === group).length);
                   return counts.length ? String(Math.min(...counts)) : "–";
                 }} />
-              ))}
+              )))}
 
             </tfoot>
           </table>

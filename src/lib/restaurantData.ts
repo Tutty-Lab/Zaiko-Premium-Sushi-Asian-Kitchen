@@ -1,6 +1,6 @@
 import type { Employee } from "../types";
 const weekly = (id: string, name: string, role: string, weeklyHours: number): Employee => ({
-  id, name, role, weeklyHours, station: "BOTH", employmentType: weeklyHours >= 39 ? "VOLLZEIT" : "TEILZEIT", targetMinutes: weeklyHours * 60, shiftHours: weeklyHours >= 30 ? { min: 5, max: 8 } : { min: 3, max: 6 }, spreadEvenly: true,
+  id, name, role, weeklyHours, station: role === "Phục Vụ" || role === "Bar" ? "SERVICE" : "KITCHEN", employmentType: weeklyHours >= 39 ? "VOLLZEIT" : "TEILZEIT", targetMinutes: weeklyHours * 60, shiftHours: weeklyHours >= 30 ? { min: 5, max: 8 } : { min: 3, max: 6 }, spreadEvenly: true,
 });
 export function zaikoEmployees(): Employee[] {
   return [

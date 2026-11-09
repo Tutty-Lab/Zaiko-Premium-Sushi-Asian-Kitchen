@@ -164,7 +164,7 @@ export function draftToEmployee(d: Draft): Omit<Employee, "id"> {
     name: d.name.trim() || "Nhân viên mới",
     employmentType: d.employmentType,
     ownerSupport: d.ownerSupport || undefined,
-    station: "BOTH",
+    station: d.ownerSupport ? "BOTH" : d.role === "Phục Vụ" || d.role === "Bar" ? "SERVICE" : "KITCHEN",
     role: d.role || undefined,
     salaryInput: d.salaryInput,
     quotaSource: "hours",

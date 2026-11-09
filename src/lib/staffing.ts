@@ -216,8 +216,8 @@ export function workingAt(shift: Shift, minute: number): boolean {
  * keep one flexible employee in the kitchen. Never count one person twice. */
 export function staffAt(shifts: Shift[], employees: Map<string, Employee>, minute: number): Employee[] {
   const present = [...new Set(shifts.filter(s => workingAt(s, minute)).map(s => s.employeeId))]
-    .map(id => employees.get(id)).filter((e): e is Employee => !!e);
-  return assignStations([...present, ...[...employees.values()].filter(e => e.ownerSupport && !present.some(p => p.id === e.id))],
+    .map(id => employees.get(id)).filter((e): e is Employee => !!e && !e.ownerSupport);
+  return assignStations(present,
     employees.has("lt-ngoc-long") ? busyKitchenTarget(shifts[0]?.date, minute) : 1);
 }
 

@@ -894,6 +894,8 @@ function improveCoverage(result: Shift[], employees: Employee[], days: Map<strin
 }
 
 export function generateWeeklySchedule(input: WeeklyInput, existing: Shift[] = []): Shift[] {
+  // Owner presence is display-only, never a scheduling resource.
+  input = { ...input, employees: input.employees.filter(employee => !employee.ownerSupport) };
   const ctx: Ctx = {
     minShift: input.rules?.some(r => r.priority === "coverage") ? 60 : 180,
     options: new Map(),
@@ -1019,7 +1021,7 @@ export function generateWeeklySchedule(input: WeeklyInput, existing: Shift[] = [
   }
   }
   // A flexible-role seed replaces the ordinary seed; do not generate both.
-  if (!(hasCoverageObjective && input.employees.some(e => e.station === "BOTH"))) {
+  if (!(hasCoverageObjective && input.employees.some(e => e.station === "BOTH" && !e.ownerSupport))) {
   for (const employee of employees) {
     const weekly = budgets.get(employee.id)!;
     for (const [weekStart, weekDates] of weeks) {
