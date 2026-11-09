@@ -7,7 +7,8 @@ import { publicHolidays } from "../holidays";
 import { resolveDay } from "../workHours";
 import { workingAt } from "../staffing";
 import { weekStartOf } from "../weeks";
-import { weeklyBudgetMinutes } from "../contract";
+import { monthlyTargetMinutesFor, weeklyBudgetMinutes } from "../contract";
+import { draftFrom, draftToEmployee } from "../../components/EmployeesTab";
 
 describe("Zaiko schedule performance and short Bar shifts", () => {
   it("migrates old Bar defaults once, preserving contracts and custom preferences", () => {
@@ -21,6 +22,35 @@ describe("Zaiko schedule performance and short Bar shifts", () => {
     schedule.employees[7].preferredWindows = [{ days: ["friday"], startMinutes: 1080, endMinutes: 1200 }];
     expect(applyMigrations("zaiko", schedule).employees[7]).toMatchObject(schedule.employees[7]);
   });
+
+  it("keeps a weekly contract when only the start date is edited in the form", () => {
+    const employee = STORES[0].sampleEmployees()[0];
+    const draft = { ...draftFrom(employee, {}, 10057), startDate: "2026-11-20" };
+    expect(draftToEmployee(draft)).toMatchObject({ weeklyHours: 39, startDate: "2026-11-20" });
+    expect(draftToEmployee({ ...draft, hours: "100" }).weeklyHours).toBeUndefined();
+  });
+
+  it("restores weekly contracts frozen by the old form and leaves typed quotas alone", () => {
+    const schedule = initialScheduleFor(STORES[0]);
+    schedule.employees[0] = { ...schedule.employees[0], weeklyHours: undefined, targetMinutes: 10057, startDate: "2026-11-20" };
+    schedule.employees[1] = { ...schedule.employees[1], weeklyHours: undefined, targetMinutes: 3000 };
+    const next = applyMigrations("zaiko", schedule);
+    expect(next.employees[0].weeklyHours).toBe(39);
+    expect(next.employees[1].weeklyHours).toBeUndefined();
+    expect(applyMigrations("zaiko", next)).toBe(next);
+  });
+
+  it("caps a monthly quota at what the remaining days allow and stays within 8 h a day", () => {
+    const store = STORES[0], schedule = initialScheduleFor(store);
+    schedule.employees[0] = { ...schedule.employees[0], weeklyHours: undefined, targetMinutes: 10080, startDate: "2026-11-20" };
+    const holidays = publicHolidays(schedule.year);
+    const open = datesOfMonth(schedule.year, schedule.month).filter(date => !resolveDay(store.workHours!, date, holidays).closed);
+    expect(monthlyTargetMinutesFor(schedule.employees[0], open, store.workHours!)).toBe(open.filter(date => date >= "2026-11-20").length * 480);
+    const shifts = generateWeeklySchedule({ ...schedule, workHours: store.workHours!, rules: store.staffingRules, weights: store.dayWeights, demandProfile: store.demandProfile, storeTag: store.id });
+    const perDay = new Map<string, number>();
+    for (const shift of shifts) perDay.set(shift.employeeId + shift.date, (perDay.get(shift.employeeId + shift.date) ?? 0) + shift.paidMinutes);
+    expect(Math.max(...perDay.values())).toBeLessThanOrEqual(480);
+  }, 30000);
 
   it("generates a full month within 20 seconds with group coverage and weekly budgets", () => {
     const store = STORES[0], schedule = initialScheduleFor(store);

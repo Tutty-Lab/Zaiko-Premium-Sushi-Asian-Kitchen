@@ -82,10 +82,10 @@ describe("Austritt mitten im Monat (endDate)", () => {
     const weekly = wk("w", 39);
     const weeklyOut = wk("w-out", 39, { endDate: "2026-09-15" });
     expect(monthlyTargetMinutesFor(weeklyOut, openDates)).toBeLessThan(monthlyTargetMinutesFor(weekly, openDates));
-    // Monatsvertrag: anteilig über die offenen Tage bis einschliesslich Austritt.
+    // Monatsvertrag: volles Soll, aber nie mehr als 8 h je Tag bis zum Austritt hergeben.
     const monthly: Employee = { id: "m", name: "m", employmentType: "VOLLZEIT", targetMinutes: 160 * 60, endDate: "2026-09-15" };
-    const erwartet = 160 * 60;
-    expect(monthlyTargetMinutesFor(monthly, openDates)).toBe(erwartet);
+    expect(monthlyTargetMinutesFor(monthly, openDates)).toBe(openDates.filter((d) => d <= "2026-09-15").length * 480);
+    expect(monthlyTargetMinutesFor({ ...monthly, targetMinutes: 43 * 60 }, openDates)).toBe(43 * 60);
   });
 
   it("verplant nach dem Austritt nichts und meldet keine Fehlstunden-Warnung", () => {

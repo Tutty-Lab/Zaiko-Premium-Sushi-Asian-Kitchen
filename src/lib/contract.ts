@@ -126,9 +126,10 @@ function weekPartMinutes(weeklyMinutes: number, week: WeekShare): number {
  * eingetragenen targetMinutes. workHours = Wochenplan des Ladens (Standard:
  * Vorgabe), damit Anzeige, Prüfung und Scheduler dieselbe Zahl rechnen.
  */
-/** Monthly contracts keep their full quota across the eligible part of a month. */
+/** Monthly contracts keep their full quota, but a start or end date can shrink what is possible. */
 function monthlyQuota(emp: Employee, openDates: readonly string[]): number {
-  return openDates.length === 0 || openDates.some(date => isEmployedOn(emp, date)) ? emp.targetMinutes : 0;
+  if (openDates.length === 0) return emp.targetMinutes;
+  return Math.min(emp.targetMinutes, openDates.filter(date => isEmployedOn(emp, date)).length * MAX_PAID_MINUTES_PER_DAY);
 }
 
 export function monthlyTargetMinutesFor(
