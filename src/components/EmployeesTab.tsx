@@ -48,7 +48,8 @@ type Draft = {
   employmentType: EmploymentType;
   station: Station;
   role: string;
-  salaryInput: "monthly" | "hourly";
+  /** salary: hours = monthly salary ÷ hourly rate; hours: typed directly. */
+  quotaSource: "salary" | "hours";
   /** Monthly hours as editable text; decimal commas are allowed. */
   hours: string;
   monthlySalary: string;
@@ -90,7 +91,7 @@ export function draftFrom(emp?: Employee, partners: PartnerChoice = {}, monthlyM
     employmentType: emp?.employmentType ?? "TEILZEIT",
     station: emp?.station ?? "BOTH",
     role: emp?.role ?? "",
-    salaryInput: emp?.salaryInput ?? (emp?.monthlySalary != null ? "monthly" : "hourly"),
+    quotaSource: emp?.quotaSource ?? (emp?.monthlySalary != null ? "salary" : "hours"),
     hours: emp ? hoursText(Math.round(((monthlyMinutes ?? emp.targetMinutes) / 60) * 100) / 100) : "169",
     monthlySalary: emp?.monthlySalary != null ? hoursText(emp.monthlySalary) : "",
     hourlyRate: emp ? (emp.hourlyRate == null ? "" : hoursText(emp.hourlyRate)) : hoursText(DEFAULT_HOURLY_RATE),
@@ -117,6 +118,18 @@ export function draftFrom(emp?: Employee, partners: PartnerChoice = {}, monthlyM
     unavailableRanges: (emp?.unavailableRanges ?? []).map(range => ({ ...range })),
     partners,
   };
+}
+
+/** Hours per month in the chosen mode; null = the inputs cannot give a valid figure. */
+export function draftQuotaHours(d: Draft): number | null {
+  if (d.ownerSupport) return 0;
+  if (d.quotaSource === "salary") {
+    const monthly = parseHours(d.monthlySalary);
+    const rate = parseHours(d.hourlyRate);
+    return d.monthlySalary.trim() !== "" && Number.isFinite(monthly) && monthly >= 0 && rate > 0 ? monthly / rate : null;
+  }
+  const hours = parseHours(d.hours);
+  return d.hours.trim() !== "" && Number.isFinite(hours) && hours >= 0 ? hours : null;
 }
 
 /** Wandelt "HH:MM" in Minuten; bei Unsinn die Voreinstellung. */
@@ -153,7 +166,6 @@ function windowsFromDraft(d: Draft): Employee["preferredWindows"] {
 
 /** Entwurf -> Mitarbeiter-Felder (ohne id). */
 export function draftToEmployee(d: Draft): Omit<Employee, "id"> {
-  const hours = Math.max(0, parseHours(d.hours) || 0);
   const amount = parseHours(d.monthlySalary);
   const rate = parseHours(d.hourlyRate);
   const tage = Number(d.maxDays);
@@ -166,10 +178,9 @@ export function draftToEmployee(d: Draft): Omit<Employee, "id"> {
     ownerSupport: d.ownerSupport || undefined,
     station: d.ownerSupport ? "BOTH" : d.role === "Phục Vụ" || d.role === "Bar" ? "SERVICE" : "KITCHEN",
     role: d.role || undefined,
-    salaryInput: d.salaryInput,
-    quotaSource: "hours",
+    quotaSource: d.quotaSource,
     unavailableRanges: d.unavailableRanges.filter(range => range.startDate && range.endDate && range.startDate <= range.endDate),
-    targetMinutes: d.ownerSupport ? 0 : Math.round(hours * 60),
+    targetMinutes: Math.round((draftQuotaHours(d) ?? 0) * 60),
     monthlySalary: Number.isFinite(amount) && amount >= 0 && d.monthlySalary.trim() !== "" ? amount : undefined,
     hourlyRate: Number.isFinite(rate) && rate > 0 ? rate : undefined,
     weeklyHours: undefined,
@@ -246,7 +257,7 @@ export function EmployeesTab({ store, allStores }: { store: UseScheduleReturn; a
         </button>
       </div>
       <p className="text-xs text-slate-500 mb-4">
-        Nhập giờ/tháng; lương tháng và lương giờ được lưu riêng. Định mức tháng được phân bổ trên toàn tháng theo ngày có thể làm và nhu cầu. Tháng này quán mở <b>{openDays}</b> ngày, mỗi người tối
+        Giờ/tháng tự tính từ lương tháng ÷ lương giờ, hoặc nhập thẳng tổng giờ. Định mức tháng được phân bổ trên toàn tháng theo ngày có thể làm và nhu cầu. Tháng này quán mở <b>{openDays}</b> ngày, mỗi người tối
         đa 6 ngày liên tiếp và 8 giờ công mỗi ngày. Bấm vào một người để sửa.
       </p>
 
@@ -576,7 +587,8 @@ function EmployeeSheet({
   const allDaysOff = d.daysOff.length === 7;
   const preferencesBad = d.windows.some(w => w.days.length === 0 || !w.start || !w.end || w.end <= w.start);
   const periodBad = Boolean(d.startDate && d.endDate && d.endDate < d.startDate);
-  const hoursBad = !d.hours.trim() || !Number.isFinite(parseHours(d.hours)) || parseHours(d.hours)<0;
+  const quotaHours = draftQuotaHours(d);
+  const hoursBad = quotaHours === null;
   const windowBad = d.limited && (!d.windowStart || !d.windowEnd || d.windowEnd <= d.windowStart);
   const shiftMinH = parseHours(d.shiftMin);
   const shiftMaxH = parseHours(d.shiftMax);
@@ -644,25 +656,55 @@ function EmployeeSheet({
               </select>
               <p className="mt-1 text-xs text-slate-500">Vai trò chính để ưu tiên xếp ca; vẫn hỗ trợ vị trí khác. Khung giờ ưu tiên chỉnh ở phần nâng cao.</p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="block min-w-0">
-                <FieldLabel>Loại lương</FieldLabel>
-                <select aria-label="Loại lương" className={`${inputClass} w-full`} value={d.salaryInput} onChange={e => set("salaryInput", e.target.value as "monthly" | "hourly")}>
-                  <option value="monthly">Lương theo tháng</option>
-                  <option value="hourly">Lương theo giờ</option>
-                </select>
-              </label>
-              <label className="block min-w-0">
-                <FieldLabel>{d.salaryInput === "monthly" ? "Lương tháng (€)" : "Lương giờ (€/h)"}</FieldLabel>
-                <HoursInput value={d.salaryInput === "monthly" ? d.monthlySalary : d.hourlyRate} onChange={v => set(d.salaryInput === "monthly" ? "monthlySalary" : "hourlyRate", v)} placeholder={d.salaryInput === "monthly" ? "VD 1700" : "13,90"} unit={d.salaryInput === "monthly" ? "€" : "€/h"} />
-              </label>
-            </div>
-            {d.ownerSupport && <p className="text-sm text-slate-600">Chủ quán hỗ trợ suốt giờ mở cửa mỗi ngày, mỗi lúc một vị trí Kasse / Phụ bếp hoặc Bếp. Không tính giờ hợp đồng.</p>}
-            <label className="block">
-              <FieldLabel>Giờ / tháng</FieldLabel>
-              <HoursInput value={d.hours} onChange={v => set("hours", v)} placeholder="VD 169" />
-              {hoursBad && <p role="alert" className="mt-1 text-xs text-rose-600">Giờ phải là số từ 0 trở lên.</p>}
-            </label>
+            {d.ownerSupport ? (
+              <p className="text-sm text-slate-600">Chủ quán hỗ trợ suốt giờ mở cửa mỗi ngày, mỗi lúc một vị trí Kasse / Phụ bếp hoặc Bếp. Không tính giờ hợp đồng.</p>
+            ) : (
+              <>
+                <div>
+                  <FieldLabel>Cách tính giờ / tháng</FieldLabel>
+                  <Segmented<Draft["quotaSource"]>
+                    value={d.quotaSource}
+                    onChange={(v) => set("quotaSource", v)}
+                    options={[
+                      { value: "salary", label: "Nhập lương" },
+                      { value: "hours", label: "Nhập tổng giờ" },
+                    ]}
+                  />
+                </div>
+                {d.quotaSource === "salary" ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="block min-w-0">
+                        <FieldLabel>Lương tháng (€)</FieldLabel>
+                        <HoursInput value={d.monthlySalary} onChange={v => set("monthlySalary", v)} placeholder="VD 1700" unit="€" />
+                      </label>
+                      <label className="block min-w-0">
+                        <FieldLabel>Lương giờ (€/h)</FieldLabel>
+                        <HoursInput value={d.hourlyRate} onChange={v => set("hourlyRate", v)} placeholder="13,90" unit="€/h" />
+                      </label>
+                    </div>
+                    <label className="block">
+                      <FieldLabel>Giờ / tháng</FieldLabel>
+                      <input
+                        readOnly
+                        tabIndex={-1}
+                        aria-label="Giờ / tháng (tự tính)"
+                        className={`${inputClass} w-full bg-slate-100 text-slate-700`}
+                        value={quotaHours === null ? "—" : hoursText(Math.round(quotaHours * 100) / 100)}
+                      />
+                      <p className="mt-1 text-xs text-slate-500">Tự tính = Lương tháng ÷ Lương giờ.</p>
+                      {hoursBad && <p role="alert" className="mt-1 text-xs text-rose-600">Cần nhập lương tháng và lương giờ lớn hơn 0.</p>}
+                    </label>
+                  </>
+                ) : (
+                  <label className="block">
+                    <FieldLabel>Giờ / tháng</FieldLabel>
+                    <HoursInput value={d.hours} onChange={v => set("hours", v)} placeholder="VD 169" />
+                    {hoursBad && <p role="alert" className="mt-1 text-xs text-rose-600">Giờ phải là số từ 0 trở lên.</p>}
+                  </label>
+                )}
+              </>
+            )}
           </SheetSection>
 
           {/* Nâng cao: alles außer Tên, Hình thức, Bộ phận, Giờ. In der Demo gesperrt. */}

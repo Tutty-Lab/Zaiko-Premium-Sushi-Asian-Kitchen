@@ -45,7 +45,6 @@ export type Employee = {
   monthlySalary?: number;
   quotaSource?: "hours" | "salary";
   hourlyRate?: number;
-  salaryInput?: "monthly" | "hourly";
   role?: string;
   referenceDays?: number;
   referenceEstimated?: boolean;
