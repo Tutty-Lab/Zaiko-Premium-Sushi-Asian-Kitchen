@@ -51,9 +51,6 @@ type Draft = {
   salaryInput: "monthly" | "hourly";
   /** Monthly hours as editable text; decimal commas are allowed. */
   hours: string;
-  /** The hours field shows this month's figure; only a real edit replaces a weekly contract. */
-  hoursAtOpen: string;
-  weeklyHours?: number;
   monthlySalary: string;
   hourlyRate: string;
   /** „Số ngày làm / tuần": "" = tự động, sonst 1..6 (maxDaysPerWeek). */
@@ -87,7 +84,6 @@ const parseHours = (text: string) => Number(text.trim().replace(",", "."));
 
 export function draftFrom(emp?: Employee, partners: PartnerChoice = {}, monthlyMinutes?: number): Draft {
   const available = emp?.availableWeekdays;
-  const hoursShown = emp ? hoursText(Math.round(((monthlyMinutes ?? emp.targetMinutes) / 60) * 100) / 100) : "169";
   return {
     name: emp?.name ?? "",
     ownerSupport: emp?.ownerSupport ?? false,
@@ -95,9 +91,7 @@ export function draftFrom(emp?: Employee, partners: PartnerChoice = {}, monthlyM
     station: emp?.station ?? "BOTH",
     role: emp?.role ?? "",
     salaryInput: emp?.salaryInput ?? (emp?.monthlySalary != null ? "monthly" : "hourly"),
-    hours: hoursShown,
-    hoursAtOpen: hoursShown,
-    weeklyHours: emp?.weeklyHours,
+    hours: emp ? hoursText(Math.round(((monthlyMinutes ?? emp.targetMinutes) / 60) * 100) / 100) : "169",
     monthlySalary: emp?.monthlySalary != null ? hoursText(emp.monthlySalary) : "",
     hourlyRate: emp ? (emp.hourlyRate == null ? "" : hoursText(emp.hourlyRate)) : hoursText(DEFAULT_HOURLY_RATE),
     maxDays: emp?.maxDaysPerWeek ? String(Math.min(6, emp.maxDaysPerWeek)) : "",
@@ -178,7 +172,7 @@ export function draftToEmployee(d: Draft): Omit<Employee, "id"> {
     targetMinutes: d.ownerSupport ? 0 : Math.round(hours * 60),
     monthlySalary: Number.isFinite(amount) && amount >= 0 && d.monthlySalary.trim() !== "" ? amount : undefined,
     hourlyRate: Number.isFinite(rate) && rate > 0 ? rate : undefined,
-    weeklyHours: d.hours === d.hoursAtOpen ? d.weeklyHours : undefined,
+    weeklyHours: undefined,
     // Ende muss nach Beginn liegen – sonst die feste Schicht ignorieren, statt
     // eine kaputte Zeitspanne zu speichern.
     fixedShift:

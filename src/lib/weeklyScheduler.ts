@@ -193,7 +193,7 @@ function blocksFor(employee: Employee, blocks: DayBlocks): DayBlocks {
 function respectsSplitRule(employee: Employee, date: string, shifts: Shift[], blocks: DayBlocks): boolean {
   const own = shifts.filter((shift) => shift.employeeId === employee.id && shift.date === date);
   if (own.length < 2) return true;
-  if (own.length > 2 || own.reduce((sum, shift) => sum + shift.paidMinutes, 0) > MAX_PAID) return false;
+  if (own.length > 2) return false;
   const [early, late] = [...own].sort((a, b) => a.startMinutes - b.startMinutes);
   const open = blocksFor(employee, blocks);
   return open.length >= 2

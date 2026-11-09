@@ -1,28 +1,8 @@
 import type { Schedule } from "../types";
-import { barPeakWindows, zaikoEmployees } from "./restaurantData";
-
-/**
- * Saving the employee form used to freeze a weekly contract into that month's
- * figure. Such a figure is off the 30-minute grid; a typed monthly quota is kept.
- */
-function restoreFrozenWeeklyContracts(schedule: Schedule): Schedule {
-  const id = "2026-11-zaiko-restore-weekly-contracts";
-  if (schedule.migrations?.includes(id)) return schedule;
-  const seeded = new Map(zaikoEmployees().map(employee => [employee.id, employee.weeklyHours]));
-  return { ...schedule, employees: schedule.employees.map(employee =>
-    employee.weeklyHours == null && employee.targetMinutes % 30 !== 0 && seeded.has(employee.id)
-      ? { ...employee, weeklyHours: seeded.get(employee.id) }
-      : employee,
-  ), migrations: [...(schedule.migrations ?? []), id] };
-}
-
+import { barPeakWindows } from "./restaurantData";
 export function applyMigrations(storeId: string, schedule: Schedule): Schedule {
-  if (storeId !== "zaiko") return schedule;
-  return restoreFrozenWeeklyContracts(applyCoverageMigrations(schedule));
-}
-
-function applyCoverageMigrations(schedule: Schedule): Schedule {
   const id = "2026-11-zaiko-coverage-groups";
+  if (storeId !== "zaiko") return schedule;
   if (!schedule.migrations?.includes(id)) {
   schedule = {...schedule, employees: schedule.employees.map(employee => ({...employee,
     station: employee.ownerSupport ? "BOTH" : employee.role === "Phục Vụ" || employee.role === "Bar" ? "SERVICE" : employee.role === "Sushi" || employee.role === "Bếp" ? "KITCHEN" : employee.station,
