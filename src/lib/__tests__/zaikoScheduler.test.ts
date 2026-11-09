@@ -36,6 +36,17 @@ describe("Zaiko schedule performance and short Bar shifts", () => {
       }
     }
     expect(shifts.some(s => s.employeeId === "zaiko-owner")).toBe(false);
+    // A split day may only bridge the 16–17 closure: no extra waiting, no one-hour stubs.
+    const idle: string[] = [];
+    for (const employee of schedule.employees) for (const date of open) {
+      const own = shifts.filter(s => s.employeeId === employee.id && s.date === date).sort((a, b) => a.startMinutes - b.startMinutes);
+      if (own.length < 2) continue;
+      const [early, late] = own;
+      if (own.length > 2 || early.endMinutes !== 960 || late.startMinutes !== 1020 || early.paidMinutes < 120 || late.paidMinutes < 120) {
+        idle.push(`${employee.name} ${date}: ${own.map(s => `${s.startMinutes / 60}-${s.endMinutes / 60}`).join(" + ")}`);
+      }
+    }
+    expect(idle).toEqual([]);
     for (const employee of schedule.employees.filter(e => !e.ownerSupport)) {
       const budgets = weeklyBudgetMinutes(employee, open, { first: dates[0], last: dates.at(-1)! }, store.workHours!);
       for (const [week, budget] of budgets) {

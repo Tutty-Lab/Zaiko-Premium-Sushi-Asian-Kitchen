@@ -98,6 +98,8 @@ const MAX_PAID = 480;
 const SLOT_DEVIATION_COST = 300;
 /** Small preference for one continuous shift over a split shift on the same day. */
 const SPLIT_SHIFT_COST = 8;
+/** Coming in for a single hour and then waiting is not a real shift. */
+const MIN_SPLIT_PART = 120;
 /**
  * „Khung giờ ưu tiên": Aufschlag je Arbeitsminute außerhalb der Wunschfenster.
  * Ein 3-h-Dienst an einem Tag ohne Fenster kostet 18.000 – mehr als die übliche
@@ -187,6 +189,20 @@ function blocksFor(employee: Employee, blocks: DayBlocks): DayBlocks {
     .filter((b) => b.endMinutes > b.startMinutes);
 }
 
+/** One shift a day is always fine; two must bridge exactly the closure, with no extra waiting. */
+function respectsSplitRule(employee: Employee, date: string, shifts: Shift[], blocks: DayBlocks): boolean {
+  const own = shifts.filter((shift) => shift.employeeId === employee.id && shift.date === date);
+  if (own.length < 2) return true;
+  if (own.length > 2) return false;
+  const [early, late] = [...own].sort((a, b) => a.startMinutes - b.startMinutes);
+  const open = blocksFor(employee, blocks);
+  return open.length >= 2
+    && early.endMinutes === open[0].endMinutes
+    && late.startMinutes === open[open.length - 1].startMinutes
+    && early.paidMinutes >= MIN_SPLIT_PART
+    && late.paidMinutes >= MIN_SPLIT_PART;
+}
+
 function optionsFor(
   employee: Employee,
   date: string,
@@ -236,18 +252,16 @@ function calculateOptions(
   if (!(employee.role === "Bar" && employee.weeklyHours === 9) && paid >= ctx.minShift + minimumEvening && blocks.length >= 2) {
     const first = blocks[0];
     const last = blocks[blocks.length - 1];
-    for (let morning = ctx.minShift; morning <= Math.min(paid - minimumEvening, first.endMinutes - first.startMinutes); morning += SLOT) {
-      // Keep opening, central and closing anchors for split parts. Continuous
-      // shifts still retain every 30-minute placement.
-      const anchors = (shifts: Shift[]) => ctx.tag.startsWith("zaiko|")
-        ? shifts.filter((_, i) => i === 0 || i === Math.floor(shifts.length / 2) || i === shifts.length - 1)
-        : shifts;
-      const evenings = anchors(placements(last, paid - morning, false));
-      for (const early of anchors(placements(first, morning, true))) {
-        for (const late of evenings) {
-          if (early.endMinutes <= late.startMinutes) add([early, late]);
-        }
-      }
+    for (let morning = Math.max(ctx.minShift, MIN_SPLIT_PART); morning <= paid - Math.max(minimumEvening, MIN_SPLIT_PART); morning += SLOT) {
+      // The parts hug the closure, so the only unpaid wait is the closure itself.
+      const evening = paid - morning;
+      const earlyStart = first.endMinutes - morning - calculatePause(morning);
+      const lateEnd = last.startMinutes + evening + calculatePause(evening);
+      if (earlyStart < first.startMinutes || lateEnd > last.endMinutes) continue;
+      add([
+        makeShift(employee.id, date, earlyStart, morning, "EARLY", effectiveWeekday, ctx),
+        makeShift(employee.id, date, last.startMinutes, evening, "LATE", effectiveWeekday, ctx),
+      ]);
     }
   }
   // Ngày Chủ nhật & ngày mở liên tục (blocks.length === 1): nhân viên làm ca liên tục,
@@ -638,7 +652,7 @@ function topUpShortfalls(
           const clash = sameDay.some(
             (other) => other !== shift && other.startMinutes < grown.endMinutes && grown.startMinutes < other.endMinutes,
           );
-          if (clash) continue;
+          if (clash || !respectsSplitRule(employee, shift.date, [...others, grown], day.blocks)) continue;
           const cost = subtractCost(dayCost([...others, grown], day.blocks, weekday, dailyTargets.get(shift.date), ctx, shift.date), before);
           if (!best || (best.over && !over) || (best.over === over && cheaper(cost, best.cost))) {
             best = { old: shift, next: grown, cost, over };
@@ -718,6 +732,7 @@ function repairMonthlyCoverage(result: Shift[], employees: Employee[], days: Map
     }
     const affected = [...new Set([...removed, ...added].map(s => s.date))];
     const candidate = [...state.filter(s => !removed.includes(s)), ...added];
+    if (affected.some(date => !respectsSplitRule(employee, date, candidate, days.get(date)!.blocks))) continue;
     const nextScores = affected.map(date => [date, scoreDay(date, candidate)] as const);
     let nextCost = total;
     for (const [date, cost] of nextScores) nextCost = addCost(subtractCost(nextCost, scores.get(date)!), cost);
