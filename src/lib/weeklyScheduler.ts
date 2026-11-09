@@ -38,6 +38,8 @@ type Ctx = {
   employeeBits: Map<string, number>;
   balanceTargets?: Map<string, Map<number, { service: number; kitchen: number; weight: number }>>;
   models: Map<string, DayModel>;
+  dateModels: Map<string, DayModel>;
+  shiftKeys: WeakMap<Shift, string>;
   peakPolish?: boolean;
   rules: readonly StaffingRule[];
   weights: Record<WeekdayKey, number>;
@@ -231,12 +233,17 @@ function calculateOptions(
   });
   // Split shift: one part in the first block, one in the last; the lunch closure is unpaid.
   const minimumEvening = partialWeek ? 120 : ctx.minShift;
-  if (paid >= ctx.minShift + minimumEvening && blocks.length >= 2) {
+  if (!(employee.role === "Bar" && employee.weeklyHours === 9) && paid >= ctx.minShift + minimumEvening && blocks.length >= 2) {
     const first = blocks[0];
     const last = blocks[blocks.length - 1];
     for (let morning = ctx.minShift; morning <= Math.min(paid - minimumEvening, first.endMinutes - first.startMinutes); morning += SLOT) {
-      const evenings = placements(last, paid - morning, false);
-      for (const early of placements(first, morning, true)) {
+      // Keep opening, central and closing anchors for split parts. Continuous
+      // shifts still retain every 30-minute placement.
+      const anchors = (shifts: Shift[]) => ctx.tag.startsWith("zaiko|")
+        ? shifts.filter((_, i) => i === 0 || i === Math.floor(shifts.length / 2) || i === shifts.length - 1)
+        : shifts;
+      const evenings = anchors(placements(last, paid - morning, false));
+      for (const early of anchors(placements(first, morning, true))) {
         for (const late of evenings) {
           if (early.endMinutes <= late.startMinutes) add([early, late]);
         }
@@ -286,8 +293,14 @@ function dayModel(blocks: DayBlocks, weekday: WeekdayKey, targetHours: number, c
  *  - paid hours: squared deviation from the day's weighted hours.
  */
 function dayCost(shifts: Shift[], blocks: DayBlocks, weekday: WeekdayKey, targetHours: number | undefined, ctx: Ctx, date: string): Cost {
-  const key = date + ":" + targetHours + ":" + shifts.map(s => [s.employeeId, s.startMinutes, s.endMinutes,
-    s.paidMinutes, s.pauseMinutes, s.pauseStartMinutes ?? ""].join(",")).sort().join(";");
+  const key = date + ":" + targetHours + ":" + shifts.map(s => {
+    let signature = ctx.shiftKeys.get(s);
+    if (!signature) {
+      signature = `${s.employeeId},${s.startMinutes},${s.endMinutes},${s.paidMinutes},${s.pauseMinutes},${s.pauseStartMinutes ?? ""}`;
+      ctx.shiftKeys.set(s, signature);
+    }
+    return signature;
+  }).sort().join(";");
   const cached = ctx.costs.get(key);
   if (cached) return cached;
   const cost = calculateDayCost(shifts, blocks, weekday, targetHours, ctx, date);
@@ -300,7 +313,12 @@ function dayCost(shifts: Shift[], blocks: DayBlocks, weekday: WeekdayKey, target
 
 function calculateDayCost(shifts: Shift[], blocks: DayBlocks, weekday: WeekdayKey, targetHours: number | undefined, ctx: Ctx, date: string): Cost {
   if (blocks.length === 0) return zeroCost();
-  const model = dayModel(blocks, weekday, targetHours ?? 0, ctx, ctx.holidays.has(date));
+  const modelKey = `${date}|${targetHours}`;
+  let model = ctx.dateModels.get(modelKey);
+  if (!model) {
+    model = dayModel(blocks, weekday, targetHours ?? 0, ctx, ctx.holidays.has(date));
+    ctx.dateModels.set(modelKey, model);
+  }
   const counts = model.minutes.map(() => 0);
   const byEmployee = new Map<string, { employee: Employee; mask: number[] }>();
   for (const shift of shifts) {
@@ -866,7 +884,16 @@ function improveCoverage(result: Shift[], employees: Employee[], days: Map<strin
       }
       // Move two service shifts together: one-person moves can get stuck when
       // both must move to hand over coverage. Preserve each person's paid time.
-      for (const rule of ctx.rules.filter(rule => rule.priority === "coverage" && rule.who)) {
+      const activeGroups = new Set<(employee: Employee) => boolean>();
+      for (const window of dayModel(day.blocks, weekday, target ?? 0, ctx, holidays.has(date)).windows) {
+        if (window.priority === "coverage" && window.who) activeGroups.add(window.who);
+      }
+      const visitedGroups = new Set<string>();
+      for (const who of activeGroups) {
+        const groupKey = employees.filter(who).map(e => e.id).sort().join(",");
+        if (visitedGroups.has(groupKey)) continue;
+        visitedGroups.add(groupKey);
+        const rule = { who };
         const members = employees.filter(employee => !employee.fixedShift && (employee.station === "BOTH" || rule.who!(employee)) &&
           onDay.some(shift => shift.employeeId === employee.id));
         for (let a = 0; a < members.length; a++) for (let b = a + 1; b < members.length; b++) {
@@ -878,7 +905,14 @@ function improveCoverage(result: Shift[], employees: Employee[], days: Map<strin
           const optionsB = optionsFor(empB, date, ownB.reduce((n, s) => n + s.paidMinutes, 0), day.blocks, partialWeek, weekday, ctx);
           let bestCost = dayCost(onDay, day.blocks, weekday, target, ctx, date);
           let best: Shift[] | undefined;
-          for (const optionA of optionsA) for (const optionB of optionsB) {
+          // Rank each side with its partner still present. Bound coordinated
+          // search to 8 × 8 instead of the full split-placement Cartesian product.
+          const shortlist = (options: Option[], partner: Shift[]) => options
+            .map(option => ({ option, cost: dayCost([...rest, ...partner, ...option.shifts], day.blocks, weekday, target, ctx, date) }))
+            .sort((a, b) => cheaper(a.cost, b.cost) ? -1 : cheaper(b.cost, a.cost) ? 1 : 0)
+            .slice(0, 8).map(item => item.option);
+          const candidatesA = shortlist(optionsA, ownB), candidatesB = shortlist(optionsB, ownA);
+          for (const optionA of candidatesA) for (const optionB of candidatesB) {
             const candidate = [...rest, ...optionA.shifts, ...optionB.shifts];
             const cost = dayCost(candidate, day.blocks, weekday, target, ctx, date);
             if (cheaper(cost, bestCost)) { best = candidate; bestCost = cost; }
@@ -903,6 +937,8 @@ export function generateWeeklySchedule(input: WeeklyInput, existing: Shift[] = [
     stationSubsets: new Map(),
     employeeBits: new Map(input.employees.map((e, i) => [e.id, 1 << i])),
     models: new Map(),
+    dateModels: new Map(),
+    shiftKeys: new WeakMap(),
     rules: input.rules ?? STAFFING_RULES,
     weights: input.weights ?? DAY_WEIGHTS,
     demandProfile: input.demandProfile,

@@ -1,6 +1,11 @@
 import type { Employee } from "../types";
+export const barPeakWindows = (): NonNullable<Employee["preferredWindows"]> => [
+  { days: ["monday", "wednesday", "thursday", "friday", "saturday"], startMinutes: 1080, endMinutes: 1200 },
+  { days: ["sunday"], startMinutes: 1020, endMinutes: 1200 },
+];
 const weekly = (id: string, name: string, role: string, weeklyHours: number): Employee => ({
-  id, name, role, weeklyHours, station: role === "Phục Vụ" || role === "Bar" ? "SERVICE" : "KITCHEN", employmentType: weeklyHours >= 39 ? "VOLLZEIT" : "TEILZEIT", targetMinutes: weeklyHours * 60, shiftHours: weeklyHours >= 30 ? { min: 5, max: 8 } : { min: 3, max: 6 }, spreadEvenly: true,
+  id, name, role, weeklyHours, station: role === "Phục Vụ" || role === "Bar" ? "SERVICE" : "KITCHEN", employmentType: weeklyHours >= 39 ? "VOLLZEIT" : "TEILZEIT", targetMinutes: weeklyHours * 60, shiftHours: role === "Bar" && weeklyHours === 9 ? { min: 2, max: 3 } : weeklyHours >= 30 ? { min: 5, max: 8 } : { min: 3, max: 6 }, spreadEvenly: true,
+  ...(role === "Bar" && weeklyHours === 9 ? { preferredWindows: barPeakWindows() } : {}),
 });
 export function zaikoEmployees(): Employee[] {
   return [
