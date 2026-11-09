@@ -20,11 +20,11 @@ it("keeps export history when switching months", () => {
 });
 
 it("remembers the selected salary input without losing the other salary value", () => {
-  const draft = draftFrom(initialScheduleFor(STORES[0]).employees[0]);
+  const draft = draftFrom({...initialScheduleFor(STORES[0]).employees[0], monthlySalary:1700, hourlyRate:14});
   draft.salaryInput = "hourly";
   draft.hourlyRate = "15,50";
   const employee = {id:"test", ...draftToEmployee(draft)};
   expect(draftFrom(employee).salaryInput).toBe("hourly");
-  expect(employee.monthlySalary).toBe(470);
+  expect(employee.monthlySalary).toBe(1700);
   expect(employee.hourlyRate).toBe(15.5);
 });

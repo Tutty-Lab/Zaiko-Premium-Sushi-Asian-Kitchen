@@ -8,7 +8,7 @@ import { datesOfMonth } from "../demand";
 import { listSavedMonths, switchMonth } from "../monthArchive";
 import type { UseScheduleReturn } from "../../hooks/useSchedule";
 const base = () => {
- const s=initialScheduleFor(STORES[0]);
+ const s={...initialScheduleFor(STORES[0]), year:2026, month:10};
  s.shifts=[{id:"s1",employeeId:s.employees[0].id,date:"2026-10-05",startMinutes:600,endMinutes:840,paidMinutes:240,pauseMinutes:0,shiftType:"EARLY" as const,generated:true}];
  s.pdfExports=[{kind:"timesheet",from:"2026-10-01",to:"2026-10-31",exportedAt:"2026-11-05T12:00:00Z",fingerprint:timesheetFingerprint(s,s.employees,datesOfMonth(2026,10))}];
  return s;
@@ -17,7 +17,7 @@ it("warns with store, month and full affected period after employee or contract 
  const s=base(); expect(staleExports(s)).toEqual([]);
  s.employees=s.employees.map((e,i)=>i===0?{...e,name:"Changed",targetMinutes:1800}:e);
  const html=renderToStaticMarkup(PdfExportWarning({schedule:s}));
- expect(html).toContain("Kichi Vietnamese Foodtour"); expect(html).toContain("10/2026");
+ expect(html).toContain("Zaiko Premium Sushi &amp; Asian Kitchen"); expect(html).toContain("10/2026");
  expect(html).toContain("01/10/2026 – 31/10/2026"); expect(html).toContain("Cần xuất lại PDF");
  expect(staleExports(JSON.parse(JSON.stringify(s)))).toHaveLength(1);
  s.pdfExports!.push({...s.pdfExports![0],fingerprint:timesheetFingerprint(s,s.employees,datesOfMonth(2026,10))});
@@ -29,4 +29,14 @@ it("warns for shifts and time off; preserves archive export history",()=>{
  const back=switchMonth(next,[],2026,10).schedule; expect(staleExports(back)).toEqual([]); expect(back.shifts).toEqual(s.shifts);
  const html=renderToStaticMarkup(SavedSchedulesPanel({store:{schedule:next,savedMonths:listSavedMonths(next),storeConfig:STORES[0]} as UseScheduleReturn,openMonth:()=>{},onClose:()=>{}}));
  expect(html).toContain("01/10/2026 – 31/10/2026"); expect(html).toContain("1 ca");expect(html).toContain("05/11/2026"); expect(html).toContain("Đã xuất chấm công");
+});
+it("identifies the affected exported week and clears warning after re-export",()=>{
+ const s=base(); const dates=datesOfMonth(2026,10).filter(d=>d>="2026-10-05"&&d<="2026-10-11");
+ s.pdfExports=[{kind:"timesheet",from:dates[0],to:dates[dates.length-1],exportedAt:"2026-11-05T12:00:00Z",fingerprint:timesheetFingerprint(s,s.employees,dates)}];
+ s.employees[0]={...s.employees[0],weeklyHours:35};
+ const html=renderToStaticMarkup(PdfExportWarning({schedule:s}));
+ expect(html).toContain("05/10/2026 – 11/10/2026");
+ expect(html).toContain("Zaiko Premium Sushi &amp; Asian Kitchen");
+ s.pdfExports.push({...s.pdfExports[0],fingerprint:timesheetFingerprint(s,s.employees,dates)});
+ expect(staleExports(s)).toEqual([]);
 });

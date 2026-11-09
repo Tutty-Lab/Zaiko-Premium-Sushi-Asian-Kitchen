@@ -911,10 +911,10 @@ export type ShareResult = "shared" | "cancelled" | "unsupported" | "failed";
  * share sau đó thì trình duyệt coi như không có thao tác người dùng và từ chối.
  */
 export async function sharePdf(blob: Blob, filename: string): Promise<ShareResult> {
-  if (typeof navigator === "undefined" || typeof File === "undefined") return "unsupported";
+  if (typeof navigator === "undefined" || typeof File === "undefined" || typeof navigator.share !== "function") return "unsupported";
   const file = new File([blob], filename, { type: "application/pdf" });
-  if (!navigator.canShare?.({ files: [file] })) return "unsupported";
   try {
+    if (typeof navigator.canShare === "function" && !navigator.canShare({ files: [file] })) return "unsupported";
     await navigator.share({ files: [file], title: filename });
     return "shared";
   } catch (err) {
